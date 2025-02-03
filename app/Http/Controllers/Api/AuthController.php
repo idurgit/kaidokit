@@ -21,8 +21,17 @@ class AuthController extends Controller
           $user = User::where('email', $request->email)->first();
           //token lama dihapus
           $user->tokens()->delete();
+          //abilities array
+          $abilities =  $user->getAllPermissions()->pluck('name')->toArray();
+          //from abilities array fliter only element that contains : and return it
+          $abilities = array_filter($abilities, function ($ability) {
+              return strpos($ability, ':') !== false;
+          });
+          $abilities = array_map(function ($ability) {
+              return explode('_', $ability)[0];
+          }, $abilities);
           //token baru di create
-          $token = $user->createToken('token')->plainTextToken;
+          $token = $user->createToken('token', $abilities)->plainTextToken;
           
           return new LoginResource([
               'token' => $token,

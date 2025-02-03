@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
         $this->call(
             [
                 BookSeeder::class,
+                PostSeeder::class,
             ]
         );
     }
