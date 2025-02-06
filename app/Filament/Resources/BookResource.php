@@ -2,23 +2,27 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Exports\BookExporter;
+use App\Filament\Imports\BookImporter;
 use App\Filament\Resources\BookResource\Pages;
-use App\Filament\Resources\BookResource\RelationManagers;
+
 use App\Models\Book;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
+use Filament\Tables\Actions\ExportAction;
+use Filament\Tables\Actions\ImportAction;
 use Filament\Forms;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Form;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
-use Filament\Infolists\Components\Section;
+
 use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Actions\ExportBulkAction;
 use Filament\Tables\Columns\SpatieMediaLibraryImageColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+
 use Illuminate\Support\Collection;
 
 class BookResource extends Resource implements HasShieldPermissions
@@ -105,10 +109,16 @@ class BookResource extends Resource implements HasShieldPermissions
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
+            ->headerActions([
+                ExportAction::make()->exporter(BookExporter::class),
+                ImportAction::make()->importer(BookImporter::class),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
+                ExportBulkAction::make()
+                    ->exporter(BookExporter::class),
             ]);
     }
 
@@ -124,7 +134,7 @@ class BookResource extends Resource implements HasShieldPermissions
         return [
             'index' => Pages\ListBooks::route('/'),
             'create' => Pages\CreateBook::route('/create'),
-            'view' => Pages\ViewBook::route('/{record}'),
+            // 'view' => Pages\ViewBook::route('/{record}'),
             'edit' => Pages\EditBook::route('/{record}/edit'),
         ];
     }

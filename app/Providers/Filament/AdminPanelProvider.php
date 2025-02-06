@@ -2,7 +2,10 @@
 
 namespace App\Providers\Filament;
 
+use App\Settings\KaidoSetting;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
+use DutchCodingCompany\FilamentSocialite\FilamentSocialitePlugin;
+use DutchCodingCompany\FilamentSocialite\Provider;
 use Filament\Forms\Components\FileUpload;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -14,6 +17,9 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Widgets;
+use Hasnayeen\Themes\Filament\Pages\Themes;
+use Hasnayeen\Themes\Http\Middleware\SetTheme;
+use Hasnayeen\Themes\ThemesPlugin;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -25,12 +31,31 @@ use Rupadana\ApiService\ApiServicePlugin;
 
 class AdminPanelProvider extends PanelProvider
 {
+    private ?KaidoSetting $settings = null;
+    //constructor
+    public function __construct()
+    {
+        //this is feels bad but this is the solution that i can think for now :D
+        // Check if settings table exists first
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('settings')) {
+                $this->settings = app(KaidoSetting::class);
+            }
+        } catch (\Exception $e) {
+            $this->settings = null;
+        }
+    }
+
     public function panel(Panel $panel): Panel
     {
         return $panel
             ->default()
             ->id('admin')
             ->path('admin')
+            ->when($this->settings->login_enabled ?? true, fn($panel) => $panel->login(Login::class))
+            ->when($this->settings->registration_enabled ?? true, fn($panel) => $panel->registration())
+            ->when($this->settings->password_reset_enabled ?? true, fn($panel) => $panel->passwordReset())
+            ->emailVerification()
             ->login(Login::class)
             // ->login()
             ->colors([
@@ -40,6 +65,7 @@ class AdminPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
                 Pages\Dashboard::class,
+                // \App\Filament\Pages\ManageSetting::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
@@ -57,30 +83,57 @@ class AdminPanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
             ])
+            ->sidebarCollapsibleOnDesktop(true)
             ->authMiddleware([
                 Authenticate::class,
             ])
-            ->plugins([
-                ApiServicePlugin::make(),
-                FilamentShieldPlugin::make(),
-                BreezyCore::make()
-                    ->myProfile(
-                        shouldRegisterUserMenu: true, // Sets the 'account' link in the panel User Menu (default = true)
-                        shouldRegisterNavigation: true, // Adds a main navigation item for the My Profile page (default = false)
-                        navigationGroup: 'Settings', // Sets the navigation group for the My Profile page (default = null)
-                        hasAvatars: true, // Enables the avatar upload form component (default = false)
-                        slug: 'my-profile',
+            ->middleware([
+                SetTheme::class
+            ])
+            ->plugins(
+                $this->getPlugins()
+            )
+            ->databaseNotifications();
+    }
+
+    private function getPlugins(): array
+    {
+        $plugins = [
+            ThemesPlugin::make(),
+            ApiServicePlugin::make(),
+            FilamentShieldPlugin::make(),
+            BreezyCore::make()
+                ->myProfile(
+                    shouldRegisterUserMenu: true, // Sets the 'account' link in the panel User Menu (default = true)
+                    shouldRegisterNavigation: true, // Adds a main navigation item for the My Profile page (default = false)
+                    navigationGroup: 'Settings', // Sets the navigation group for the My Profile page (default = null)
+                    hasAvatars: true, // Enables the avatar upload form component (default = false)
+                    slug: 'my-profile',
+                )
+                ->avatarUploadComponent(fn($fileUpload) => $fileUpload->disableLabel())
+                // OR, replace with your own component
+                ->avatarUploadComponent(
+                    fn() => FileUpload::make('avatar_url')
+                        ->disableLabel()
+                        ->image()
+                        ->disk('public')
                     )
-                    ->avatarUploadComponent(fn($fileUpload) => $fileUpload->disableLabel())
-                    // OR, replace with your own component
-                    ->avatarUploadComponent(
-                        fn() => FileUpload::make('avatar_url')
-                            ->disableLabel()
-                            ->image()
-                            ->disk('public')
-                        )
-                    ->enableTwoFactorAuthentication() // Enable 2FA
-                    ]);
-           
+                ->enableTwoFactorAuthentication(), // Enable 2FA
+        ];
+        
+        if ($this->settings->sso_enabled ?? true) {
+                    $plugins[] =
+                        FilamentSocialitePlugin::make()
+                        ->providers([
+                            Provider::make('google')
+                                ->label('Google')
+                                ->icon('fab-google')
+                                ->color(Color::hex('#2f2a6b'))
+                                ->outlined(false)
+                                ->stateless(false)
+                        ])->registration(true);
+                }        
+        return $plugins;
     }
 }
+

@@ -20,6 +20,8 @@ class Book extends Model implements HasMedia
         'author',
         'description',
     ];
+    // add guaded
+    protected $guarded = ['id'];
 
     public function registerMediaConversions(?Media $media = null): void
 {
